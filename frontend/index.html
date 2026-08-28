@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人机集群管理平台 | Drone Swarm Management Platform</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="top-bar">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v6m0 10v6m11-11h-6M7 12H1m15.5-7.5l-4.2 4.2m-4.6 4.6l-4.2 4.2m0-13l4.2 4.2m4.6 4.6l4.2 4.2"/>
+            </svg>
+            <span class="logo-text">DroneSwarm<span class="logo-sub">集群管理平台</span></span>
+        </div>
+        <div class="top-stats">
+            <div class="stat-item" id="stat-total">
+                <span class="stat-label">总数</span>
+                <span class="stat-value" id="stat-total-val">0</span>
+            </div>
+            <div class="stat-item online">
+                <span class="stat-label">在线</span>
+                <span class="stat-value" id="stat-online-val">0</span>
+            </div>
+            <div class="stat-item flying">
+                <span class="stat-label">飞行中</span>
+                <span class="stat-value" id="stat-flying-val">0</span>
+            </div>
+            <div class="stat-item offline">
+                <span class="stat-label">离线</span>
+                <span class="stat-value" id="stat-offline-val">0</span>
+            </div>
+            <div class="stat-item avg-battery">
+                <span class="stat-label">平均电量</span>
+                <span class="stat-value" id="stat-battery-val">0%</span>
+            </div>
+        </div>
+        <div class="top-actions">
+            <button class="btn btn-primary" onclick="openAddDroneModal()">+ 添加无人机</button>
+            <button class="btn btn-outline" onclick="switchTab('swarm')">编队管理</button>
+            <div class="ws-status" id="ws-status">
+                <span class="ws-dot"></span>
+                <span class="ws-text">连接中</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体区域 -->
+    <main class="main-container">
+        <!-- 左侧面板：无人机列表 -->
+        <aside class="left-panel">
+            <div class="panel-tabs">
+                <button class="tab-btn active" data-tab="drones" onclick="switchTab('drones')">无人机</button>
+                <button class="tab-btn" data-tab="missions" onclick="switchTab('missions')">任务</button>
+                <button class="tab-btn" data-tab="swarm" onclick="switchTab('swarm')">编队</button>
+                <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">日志</button>
+            </div>
+
+            <!-- 无人机列表 -->
+            <div class="tab-content active" id="tab-drones">
+                <div class="panel-search">
+                    <input type="text" id="drone-search" placeholder="搜索无人机..." oninput="filterDrones(this.value)">
+                </div>
+                <div class="drone-list" id="drone-list">
+                    <div class="empty-state">
+                        <p>暂无无人机</p>
+                        <p class="empty-hint">点击右上角"添加无人机"注册</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务列表 -->
+            <div class="tab-content" id="tab-missions">
+                <div class="panel-header">
+                    <span>飞行任务</span>
+                    <button class="btn btn-small btn-primary" onclick="openMissionModal()">+ 新建</button>
+                </div>
+                <div class="mission-list" id="mission-list">
+                    <div class="empty-state"><p>暂无任务</p></div>
+                </div>
+            </div>
+
+            <!-- 编队列表 -->
+            <div class="tab-content" id="tab-swarm">
+                <div class="panel-header">
+                    <span>编队组</span>
+                    <button class="btn btn-small btn-primary" onclick="openSwarmModal()">+ 新建</button>
+                </div>
+                <div class="swarm-list" id="swarm-list">
+                    <div class="empty-state"><p>暂无编队组</p></div>
+                </div>
+            </div>
+
+            <!-- 日志 -->
+            <div class="tab-content" id="tab-logs">
+                <div class="panel-header">
+                    <span>系统日志</span>
+                    <button class="btn btn-small" onclick="clearLogs()">清空</button>
+                </div>
+                <div class="log-list" id="log-list"></div>
+            </div>
+        </aside>
+
+        <!-- 中间地图区域 -->
+        <section class="map-container">
+            <div id="map"></div>
+            <div class="map-overlay map-legend">
+                <div class="legend-title">图例</div>
+                <div class="legend-item"><span class="legend-dot standby"></span>待机</div>
+                <div class="legend-item"><span class="legend-dot flying"></span>飞行中</div>
+                <div class="legend-item"><span class="legend-dot offline"></span>离线</div>
+                <div class="legend-item"><span class="legend-dot leader"></span>长机</div>
+            </div>
+            <div class="map-overlay map-controls">
+                <button class="map-ctrl-btn" onclick="centerMap()" title="居中">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3m10-10h-3M5 12H2"/></svg>
+                </button>
+                <button class="map-ctrl-btn" onclick="toggleTrails()" title="轨迹">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12c4-8 14-8 18 0M3 12c4 8 14 8 18 0"/></svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- 右侧面板：无人机详情 -->
+        <aside class="right-panel" id="right-panel">
+            <div class="right-panel-header">
+                <h3 id="detail-title">无人机详情</h3>
+                <button class="close-btn" onclick="closeDetailPanel()">×</button>
+            </div>
+            <div class="right-panel-body" id="detail-body">
+                <div class="empty-state">
+                    <p>选择一架无人机查看详情</p>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 添加无人机弹窗 -->
+    <div class="modal" id="add-drone-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>注册新无人机</h3>
+                <button class="close-btn" onclick="closeModal('add-drone-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>无人机ID *</label>
+                    <input type="text" id="form-drone-id" placeholder="如: DRONE-001" value="DRONE-001">
+                </div>
+                <div class="form-group">
+                    <label>名称 *</label>
+                    <input type="text" id="form-drone-name" placeholder="如: 侦察一号" value="侦察一号">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>型号</label>
+                        <input type="text" id="form-drone-model" value="Generic Quadcopter">
+                    </div>
+                    <div class="form-group">
+                        <label>固件</label>
+                        <input type="text" id="form-drone-firmware" value="PX4 v1.14">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>连接类型</label>
+                        <select id="form-conn-type">
+                            <option value="udp">UDP</option>
+                            <option value="tcp">TCP</option>
+                            <option value="serial">串口</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>连接地址</label>
+                        <input type="text" id="form-conn-addr" value="127.0.0.1:14550">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>所属编队组（可选）</label>
+                    <input type="text" id="form-group-id" placeholder="如: GROUP-A">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('add-drone-modal')">取消</button>
+                <button class="btn btn-primary" onclick="submitAddDrone()">确认注册</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建任务弹窗 -->
+    <div class="modal" id="mission-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>创建飞行任务</h3>
+                <button class="close-btn" onclick="closeModal('mission-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>任务名称 *</label>
+                    <input type="text" id="mission-name" placeholder="如: 区域巡逻任务">
+                </div>
+                <div class="form-group">
+                    <label>任务描述</label>
+                    <textarea id="mission-desc" rows="2" placeholder="任务描述..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>分配无人机</label>
+                    <select id="mission-drone">
+                        <option value="">暂不分配</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>最大高度(m)</label>
+                        <input type="number" id="mission-max-alt" value="120">
+                    </div>
+                    <div class="form-group">
+                        <label>最大速度(m/s)</label>
+                        <input type="number" id="mission-max-speed" value="15">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>航点列表（JSON格式）</label>
+                    <textarea id="mission-waypoints" rows="6" placeholder='[{"lat":22.5431,"lon":113.9440,"alt":50,"speed":10}]'>[{"lat":22.5431,"lon":113.9440,"alt":50,"speed":10},{"lat":22.5450,"lon":113.9460,"alt":80,"speed":12}]</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('mission-modal')">取消</button>
+                <button class="btn btn-primary" onclick="submitMission()">创建任务</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建编队弹窗 -->
+    <div class="modal" id="swarm-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>创建编队组</h3>
+                <button class="close-btn" onclick="closeModal('swarm-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>编队ID *</label>
+                    <input type="text" id="swarm-id" placeholder="如: GROUP-A">
+                </div>
+                <div class="form-group">
+                    <label>编队名称 *</label>
+                    <input type="text" id="swarm-name" placeholder="如: A编队">
+                </div>
+                <div class="form-group">
+                    <label>编队类型</label>
+                    <select id="swarm-formation">
+                        <option value="line">一字队形</option>
+                        <option value="circle">圆形队形</option>
+                        <option value="grid">网格队形</option>
+                        <option value="v_shape">V字队形</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <textarea id="swarm-desc" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('swarm-modal')">取消</button>
+                <button class="btn btn-primary" onclick="submitSwarm()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示消息 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/map.js"></script>
+    <script src="/static/js/drone-panel.js"></script>
+    <script src="/static/js/mission-panel.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
