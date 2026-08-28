@@ -1,6 +1,6 @@
 # 无人机集群管理平台
 
-> Drone Swarm Management Platform — 支持多无人机接入、实时遥测、飞行任务与编队控制的全栈管理平台。
+Drone Swarm Management Platform — 支持多无人机接入、实时遥测、飞行任务与编队控制的全栈管理平台。
 
 ## 功能特性
 
